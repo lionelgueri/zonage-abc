@@ -18,7 +18,7 @@ Carte interactive du zonage ABC de toutes les communes françaises, mise à jour
 | 🔴 | **A** | Grandes métropoles — forte tension |
 | 🟠 | **B1** | Grandes agglomérations et zones chères |
 | 🟡 | **B2** | Villes moyennes avec tension modérée |
-| ⬜ | **C** | Reste du territoire — marché détendu |
+| ⚪ | **C** | Reste du territoire — marché détendu |
 
 Les communes **reclassées** au 5 septembre 2025 sont signalées lors du clic sur la commune.
 
