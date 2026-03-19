@@ -222,6 +222,25 @@
       white-space: nowrap;
     }
 
+    /* ── Labels régions françaises ── */
+    .region-label {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #333;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      white-space: nowrap;
+      text-shadow:
+        1px  1px 0 #fff,
+       -1px  1px 0 #fff,
+        1px -1px 0 #fff,
+       -1px -1px 0 #fff,
+        0    2px 4px rgba(255,255,255,0.8);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
     .source-info {
       position: absolute;
       bottom: 36px; left: 10px;
@@ -411,8 +430,11 @@ function renderMap(geojson) {
     onEachFeature: bindEvents,
   }).addTo(map);
 
-  // Ajouter les labels par-dessus les communes colorées
+  // Ajouter les labels CartoDB par-dessus les communes colorées
   labelsLayer.addTo(map);
+
+  // Labels des régions en français (visibles uniquement aux zooms faibles)
+  addRegionLabels();
 }
 
 function getStyle(feature) {
@@ -566,6 +588,53 @@ function setStatus(text, pct) {
 
 function hideLoading() {
   document.getElementById('loading').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+// LABELS DES RÉGIONS EN FRANÇAIS
+// Affichés uniquement aux zooms ≤ 7 pour remplacer les noms anglais CartoDB
+// ─────────────────────────────────────────────
+const REGIONS_FR = [
+  { nom: 'Île-de-France',               lat: 48.63,  lng:  2.45 },
+  { nom: 'Hauts-de-France',             lat: 50.35,  lng:  2.80 },
+  { nom: 'Normandie',                   lat: 49.05,  lng:  0.30 },
+  { nom: 'Bretagne',                    lat: 48.10,  lng: -2.90 },
+  { nom: 'Pays de la Loire',            lat: 47.55,  lng: -0.80 },
+  { nom: 'Centre-Val de Loire',         lat: 47.55,  lng:  1.70 },
+  { nom: 'Grand Est',                   lat: 48.60,  lng:  6.60 },
+  { nom: 'Bourgogne-Franche-Comté',     lat: 47.10,  lng:  5.00 },
+  { nom: 'Nouvelle-Aquitaine',          lat: 45.10,  lng:  0.10 },
+  { nom: 'Auvergne-Rhône-Alpes',        lat: 45.45,  lng:  4.70 },
+  { nom: 'Occitanie',                   lat: 43.75,  lng:  2.60 },
+  { nom: 'Provence-Alpes-Côte d\'Azur', lat: 43.90,  lng:  6.10 },
+  { nom: 'Corse',                       lat: 42.10,  lng:  9.10 },
+];
+
+let regionMarkersGroup = null;
+
+function addRegionLabels() {
+  regionMarkersGroup = L.layerGroup();
+
+  REGIONS_FR.forEach(r => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="region-label">${r.nom}</div>`,
+      iconAnchor: [0, 0],
+    });
+    L.marker([r.lat, r.lng], { icon, interactive: false }).addTo(regionMarkersGroup);
+  });
+
+  // Afficher/masquer selon le zoom (visible ≤ 7, masqué ≥ 8)
+  function updateRegionLabels() {
+    if (map.getZoom() <= 7) {
+      if (!map.hasLayer(regionMarkersGroup)) regionMarkersGroup.addTo(map);
+    } else {
+      if (map.hasLayer(regionMarkersGroup)) map.removeLayer(regionMarkersGroup);
+    }
+  }
+
+  map.on('zoomend', updateRegionLabels);
+  updateRegionLabels(); // état initial
 }
 
 // ─────────────────────────────────────────────
