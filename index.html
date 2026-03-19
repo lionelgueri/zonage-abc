@@ -317,45 +317,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- TopoJSON client (décompression du fichier de données) -->
 <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+<!-- Configuration personnalisable (couleurs, zoom, opacités…) -->
+<script src="config.js"></script>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  CONFIGURATION — tous les paramètres modifiables sont ici
-// ═══════════════════════════════════════════════════════════════
-
-const CONFIG = {
-
-  // --- Carte : position et zoom au démarrage ---
-  carte: {
-    centre:       [46.5, 2.3],  // [latitude, longitude] du centre initial
-    zoomInitial:  6,             // niveau de zoom au démarrage (1=monde, 18=rue)
-    zoomMinLabels: 6,            // à partir de quel zoom les noms de villes apparaissent
-  },
-
-  // --- Couleurs des zones (fill = remplissage, stroke = bordure) ---
-  zones: {
-    'Abis': { fill: '#9800E7', stroke: '#7000ab', label: 'Zone A bis' },
-    'A':    { fill: '#F10000', stroke: '#b50000', label: 'Zone A'     },
-    'B1':   { fill: '#FFA600', stroke: '#c07d00', label: 'Zone B1'    },
-    'B2':   { fill: '#ABE300', stroke: '#7faa00', label: 'Zone B2'    },
-    'C':    { fill: '#FFFFFF', stroke: '#cccccc', label: 'Zone C'     },
-  },
-
-  // --- Opacité des communes (0 = transparent, 1 = opaque) ---
-  opaciteZones: 0.78,
-
-  // --- Fond de carte (opacité du fond gris derrière les zones) ---
-  opaciteFond: 0.4,
-
-  // --- Fichier de données (chemin relatif depuis index.html) ---
-  fichierDonnees: './data/communes-2025.topo.json',
-
-};
-
-// ═══════════════════════════════════════════════════════════════
-//  FIN DE LA CONFIGURATION — ne pas modifier en dessous
-// ═══════════════════════════════════════════════════════════════
-
 // Raccourci utilisé dans le reste du code
 const ZONES = CONFIG.zones;
 
