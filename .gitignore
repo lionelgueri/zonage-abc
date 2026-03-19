@@ -1,0 +1,22 @@
+# Dépendances Node.js (installées localement par npm/node)
+node_modules/
+
+# Fichiers temporaires de build
+/tmp/
+*.log
+
+# Fichiers système macOS
+.DS_Store
+
+# Fichiers système Windows
+Thumbs.db
+desktop.ini
+
+# Fichiers d'environnement (tokens, mots de passe — ne jamais commiter !)
+.env
+.env.local
+
+# Fichiers éditeurs
+.vscode/
+.idea/
+*.swp
