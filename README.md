@@ -4,7 +4,7 @@ Carte interactive du zonage ABC de toutes les communes françaises, mise à jour
 
 <br>
 
-[![Aperçu de la carte](screenshot.png)](https://lionelgueri.github.io/zonage-abc-2025/)
+[![Aperçu de la carte](screenshot.png)](https://lionelgueri.github.io/zonage-abc/)
 
 > 👆 Cliquez sur l'image pour ouvrir la carte interactive
 
@@ -51,7 +51,7 @@ Les communes **reclassées** au 5 septembre 2025 sont signalées lors du clic su
 ## Structure du projet
 
 ```
-zonage-abc-2025/
+zonage-abc/
 ├── index.html                                        # Application web (fichier unique)
 ├── config.js                                         # Paramètres personnalisables (couleurs, zoom…)
 ├── data/
