@@ -26,8 +26,6 @@ Ce classement est révisé périodiquement par arrêté ministériel pour coller
 | **Bail Réel Solidaire (BRS)** | Périmètre d'éligibilité et niveaux d'aide indexés sur la zone |
 | **Prêt Social Location-Accession (PSLA)** | Barèmes et plafonds définis par zone |
 
-> La révision de septembre 2025 permet à **2,4 millions de Français** supplémentaires de bénéficier de conditions plus avantageuses pour ces dispositifs.
-
 <br>
 
 ## Zones représentées
