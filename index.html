@@ -315,8 +315,8 @@
      ════════════════════════════════════════════ -->
 <!-- Leaflet (cartographie) -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- PapaParse (lecture CSV) -->
-<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<!-- TopoJSON client (décompression du fichier de données) -->
+<script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
 
 <script>
 // ─────────────────────────────────────────────
@@ -349,94 +349,51 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // ─────────────────────────────────────────────
 // STOCKAGE DES DONNÉES
 // ─────────────────────────────────────────────
-let zoneData    = {};   // { "01001": { name, zone, dep, reclassement } }
+let zoneIndex    = {};  // { "01001": "B1" } — index léger pour la recherche
 let geojsonLayer = null;
 
 // ─────────────────────────────────────────────
 // CHARGEMENT PRINCIPAL
+// Fichier unique TopoJSON pré-fusionné (zones 2025 + contours)
+// Hébergé sur ce même repo GitHub → rapide et indépendant
 // ─────────────────────────────────────────────
 async function loadAll() {
   try {
-    // Étape 1 : CSV des zones 2025
-    setStatus('Téléchargement du zonage 2025…', 10);
-    await loadZoneCSV();
+    setStatus('Chargement des données…', 20);
+    const response = await fetch('./communes-2025.topo.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    // Étape 2 : GeoJSON des contours de communes
-    setStatus('Téléchargement des contours (peut prendre 1 à 2 min sur connexion lente)…', 40);
-    await loadGeoJSON();
+    setStatus('Décompression…', 60);
+    const topo = await response.json();
 
+    setStatus('Rendu de la carte…', 85);
+    // Conversion TopoJSON → GeoJSON via la librairie topojson-client
+    const geojson = topojson.feature(topo, topo.objects.communes);
+
+    // Index léger code INSEE → zone (pour la barre de recherche)
+    geojson.features.forEach(f => {
+      if (f.properties.c && f.properties.z) zoneIndex[f.properties.c] = f.properties.z;
+    });
+
+    renderMap(geojson);
     hideLoading();
+
+    const total = Object.keys(zoneIndex).length;
     document.getElementById('status').textContent =
-      `${Object.keys(zoneData).length.toLocaleString()} communes · 2025`;
+      `${total.toLocaleString()} communes · données 2025`;
 
   } catch (err) {
     document.getElementById('loading-text').textContent =
-      '❌ Erreur de chargement. Vérifiez votre connexion internet et rechargez la page.';
+      '❌ Erreur de chargement. Rechargez la page.';
     document.getElementById('progress-bar').style.background = '#e94560';
     console.error(err);
   }
 }
 
 // ─────────────────────────────────────────────
-// ÉTAPE 1 : Chargement du CSV des zones 2025
-// (source officielle : data.gouv.fr)
-// ─────────────────────────────────────────────
-function loadZoneCSV() {
-  return new Promise((resolve, reject) => {
-    // URL directe vers le fichier CSV de l'arrêté du 5 septembre 2025
-    const csvUrl = 'https://www.data.gouv.fr/api/1/datasets/r/13f7282b-8a25-43ab-9713-8bb4e476df55';
-
-    Papa.parse(csvUrl, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: ({ data }) => {
-        data.forEach(row => {
-          // Les colonnes du CSV 2025 (adapter si besoin selon le fichier réel)
-          const code        = (row['CODGEO']  || row['Code commune'] || '').trim();
-          const zone        = (row['Zonage en vigueur depuis le 5 septembre 2025']
-                              || row['Zonage'] || '').trim();
-          const name        = (row['LIBGEO']  || row['Nom commune']  || '').trim();
-          const dep         = (row['DEP']     || '').trim();
-          const reclasse    = (row['Reclassement 5 septembre 2025'] || '').trim();
-
-          if (code && zone) {
-            zoneData[code] = { name, zone, dep, reclassement: reclasse === 'Oui' };
-          }
-        });
-        console.log(`✅ CSV chargé : ${Object.keys(zoneData).length} communes`);
-        setStatus('Zonage 2025 chargé ✓', 35);
-        resolve();
-      },
-      error: reject,
-    });
-  });
-}
-
-// ─────────────────────────────────────────────
-// ÉTAPE 2 : Chargement du GeoJSON des contours
-// Source officielle et pérenne : OpenDataSoft / IGN
-// Données publiques, open data, pas de dépendance repo tiers
-// ─────────────────────────────────────────────
-async function loadGeoJSON() {
-  // API OpenDataSoft — dataset officiel georef-france-commune (IGN)
-  // On sélectionne uniquement les champs utiles pour alléger le transfert
-  const url =
-    'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-commune/exports/geojson' +
-    '?select=com_code,com_name,geo_shape&timezone=Europe%2FParis';
-
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-  setStatus('Analyse du GeoJSON…', 75);
-  const geojson = await response.json();
-
-  setStatus('Rendu de la carte…', 90);
-  renderMap(geojson);
-}
-
-// ─────────────────────────────────────────────
 // RENDU DE LA CARTE
+// Les propriétés dans le TopoJSON sont compactes :
+//   c = code INSEE, n = nom, z = zone, d = département, r = reclassé
 // ─────────────────────────────────────────────
 function renderMap(geojson) {
   geojsonLayer = L.geoJSON(geojson, {
@@ -445,23 +402,10 @@ function renderMap(geojson) {
   }).addTo(map);
 }
 
-// Retourne le code INSEE depuis les propriétés GeoJSON OpenDataSoft
-// com_code peut être une chaîne "75056" ou un tableau ["75056"] selon l'API
-function getInseeCode(props) {
-  const raw = props.com_code || props.code || props.INSEE_COM || props.CODGEO || '';
-  // Si tableau (format OpenDataSoft), prendre le premier élément
-  return Array.isArray(raw) ? (raw[0] || '') : String(raw);
-}
-
 function getStyle(feature) {
-  const code = getInseeCode(feature.properties);
-  const data = zoneData[code];
+  const zone = feature.properties.z;
+  const z    = ZONES[zone];
 
-  if (!data) {
-    return { fillColor: '#FFFFFF', weight: 0.3, color: '#cccccc', fillOpacity: 0.6 };
-  }
-
-  const z = ZONES[data.zone];
   if (!z) {
     return { fillColor: '#FFFFFF', weight: 0.3, color: '#cccccc', fillOpacity: 0.6 };
   }
@@ -493,33 +437,28 @@ function onMouseOut(e) {
 }
 
 function onClickCommune(e) {
-  const props = e.target.feature.properties;
-  const code  = getInseeCode(props);
-  const data  = zoneData[code];
-
+  const p     = e.target.feature.properties;
   const panel = document.getElementById('info-panel');
   const badge = document.getElementById('info-zone');
   const nameEl = document.getElementById('info-name');
   const depEl  = document.getElementById('info-dep');
   const reclEl = document.getElementById('info-reclassement');
 
-  if (data) {
-    const z = ZONES[data.zone];
-    badge.textContent    = data.zone === 'Abis' ? 'A bis' : `Zone ${data.zone}`;
+  if (p.z) {
+    const z = ZONES[p.z];
+    badge.textContent      = p.z === 'Abis' ? 'A bis' : `Zone ${p.z}`;
     badge.style.background = z ? z.fill : '#555';
-    // com_name peut aussi être un tableau dans l'API OpenDataSoft
-    const comName = Array.isArray(props.com_name) ? props.com_name[0] : (props.com_name || '');
-    nameEl.textContent   = data.name || comName || code;
-    depEl.textContent    = `Département ${data.dep} · Code INSEE : ${code}`;
-    reclEl.style.display = data.reclassement ? 'block' : 'none';
+    badge.style.color      = (p.z === 'B2' || p.z === 'C') ? '#333' : 'white';
+    nameEl.textContent     = p.n || p.c;
+    depEl.textContent      = `Département ${p.d} · Code INSEE : ${p.c}`;
+    reclEl.style.display   = p.r ? 'block' : 'none';
   } else {
-    badge.textContent    = 'Non classée';
-    badge.style.background = '#aaa';
-    badge.style.color = '#333';
-    const comName2 = Array.isArray(props.com_name) ? props.com_name[0] : (props.com_name || '');
-    nameEl.textContent   = comName2 || code || 'Commune inconnue';
-    depEl.textContent    = 'Aucune donnée de zonage disponible';
-    reclEl.style.display = 'none';
+    badge.textContent      = 'Non classée';
+    badge.style.background = '#ddd';
+    badge.style.color      = '#333';
+    nameEl.textContent     = p.n || p.c || 'Commune inconnue';
+    depEl.textContent      = p.c ? `Code INSEE : ${p.c}` : '';
+    reclEl.style.display   = 'none';
   }
 
   panel.style.display = 'block';
@@ -569,16 +508,16 @@ function showResults(features) {
   if (!features.length) return;
 
   features.forEach(f => {
-    const code     = f.properties.citycode || '';
-    const zoneInfo = zoneData[code];
-    const z        = zoneInfo ? ZONES[zoneInfo.zone] : null;
+    const code = f.properties.citycode || '';
+    const zone = zoneIndex[code];
+    const z    = zone ? ZONES[zone] : null;
 
     const div = document.createElement('div');
     div.className = 'search-result';
 
     const zonePart = z
       ? `&ensp;<span style="color:${z.fill};font-weight:700">${
-          zoneInfo.zone === 'Abis' ? 'A bis' : zoneInfo.zone
+          zone === 'Abis' ? 'A bis' : zone
         }</span>`
       : '';
 
