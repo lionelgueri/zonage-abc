@@ -215,6 +215,32 @@
       color: #e94560;
     }
 
+    /* ── Boutons de mode ── */
+    #mode-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .mode-btn {
+      padding: 5px 13px;
+      border-radius: 20px;
+      border: 1px solid #334;
+      background: transparent;
+      color: #8899bb;
+      font-size: 0.78rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .mode-btn:hover { border-color: #8899bb; color: #cdd; }
+    .mode-btn.active {
+      background: #e94560;
+      border-color: #e94560;
+      color: white;
+      font-weight: 600;
+    }
+
     /* ── Statut et source ── */
     #status {
       font-size: 0.73rem;
@@ -251,6 +277,12 @@
     <div id="search-results"></div>
   </div>
 
+  <div id="mode-buttons">
+    <button class="mode-btn active" onclick="setMode('2025')">Zonage 2025</button>
+    <button class="mode-btn" onclick="setMode('evo2025')">Évolutions 2025</button>
+    <button class="mode-btn" onclick="setMode('evo2024')">Évolutions 2024</button>
+  </div>
+
   <span id="status">Chargement…</span>
 </div>
 
@@ -273,21 +305,23 @@
      LÉGENDE
      ════════════════════════════════════════════ -->
 <div id="legend">
-  <h3>Zonage ABC 2025</h3>
-  <div class="legend-item">
-    <div class="legend-color" style="background:#9800E7"></div><span>Zone A bis</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-color" style="background:#F10000"></div><span>Zone A</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-color" style="background:#FFA600"></div><span>Zone B1</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-color" style="background:#ABE300"></div><span>Zone B2</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-color" style="background:#FFFFFF; border:1px solid #999"></div><span>Zone C</span>
+  <h3 id="legend-title">Zonage ABC 2025</h3>
+  <div id="legend-items">
+    <div class="legend-item">
+      <div class="legend-color" style="background:#9800E7"></div><span>Zone A bis</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background:#F10000"></div><span>Zone A</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background:#FFA600"></div><span>Zone B1</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background:#ABE300"></div><span>Zone B2</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background:#FFFFFF; border:1px solid #999"></div><span>Zone C</span>
+    </div>
   </div>
 </div>
 
@@ -302,6 +336,9 @@
     <div class="commune-dep"  id="info-dep">—</div>
     <div class="reclassement-tag" id="info-reclassement" style="display:none">
       ↕ Reclassée au 5 septembre 2025
+    </div>
+    <div class="reclassement-tag" id="info-evolution" style="display:none; margin-top:9px;">
+      <span id="info-evolution-text"></span>
     </div>
   </div>
 </div>
@@ -321,8 +358,11 @@
 <script src="config.js"></script>
 
 <script>
-// Raccourci utilisé dans le reste du code
+// Raccourcis utilisés dans le reste du code
 const ZONES = CONFIG.zones;
+
+// Hiérarchie des zones (plus bas = plus tendu)
+const ZONE_RANK = { 'Abis': 0, 'A': 1, 'B1': 2, 'B2': 3, 'C': 4 };
 
 // ─────────────────────────────────────────────
 // INITIALISATION DE LA CARTE LEAFLET
@@ -356,11 +396,15 @@ const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_la
 // ─────────────────────────────────────────────
 let zoneIndex    = {};  // { "01001": "B1" } — index léger pour la recherche
 let geojsonLayer = null;
+let currentMode  = '2025';  // '2025' | 'evo2025' | 'evo2024'
+
+// Index d'évolution : { "01078": { from: "B1", to: "A" } }
+let evoIndex2024 = null;
+let evoIndex2025 = null;
 
 // ─────────────────────────────────────────────
 // CHARGEMENT PRINCIPAL
 // Fichier unique TopoJSON pré-fusionné (zones 2025 + contours)
-// Hébergé sur ce même repo GitHub → rapide et indépendant
 // ─────────────────────────────────────────────
 async function loadAll() {
   try {
@@ -372,7 +416,6 @@ async function loadAll() {
     const topo = await response.json();
 
     setStatus('Rendu de la carte…', 85);
-    // Conversion TopoJSON → GeoJSON via la librairie topojson-client
     const geojson = topojson.feature(topo, topo.objects.communes);
 
     // Index léger code INSEE → zone (pour la barre de recherche)
@@ -396,9 +439,105 @@ async function loadAll() {
 }
 
 // ─────────────────────────────────────────────
+// CHARGEMENT D'UN CSV D'ÉVOLUTION
+// Renvoie { "01078": { from: "B1", to: "A" } }
+// ─────────────────────────────────────────────
+async function loadEvoCsv(url) {
+  const res  = await fetch(url);
+  const text = await res.text();
+  const lines = text.split('\n').filter(l => l.trim());
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
+
+  const idxCode = headers.findIndex(h => h === 'CODGEO');
+  const idxFrom = headers.findIndex(h => h.toLowerCase().startsWith('zone avant'));
+  const idxTo   = headers.findIndex(h => h.toLowerCase().startsWith('reclassement'));
+
+  const index = {};
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+    const code = cols[idxCode] || '';
+    const from = cols[idxFrom] || '';
+    const to   = cols[idxTo]   || '';
+    if (code && from && to) index[code] = { from, to };
+  }
+  return index;
+}
+
+// ─────────────────────────────────────────────
+// GESTION DU MODE (boutons de sélection)
+// ─────────────────────────────────────────────
+async function setMode(mode) {
+  if (currentMode === mode) return;
+  currentMode = mode;
+
+  // Mettre à jour l'état actif des boutons
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  const idx = ['2025', 'evo2025', 'evo2024'].indexOf(mode);
+  document.querySelectorAll('.mode-btn')[idx].classList.add('active');
+
+  closeInfo();
+
+  if (mode !== '2025') {
+    // Charger les données d'évolution si pas encore fait
+    if (mode === 'evo2024' && !evoIndex2024) {
+      document.getElementById('status').textContent = 'Chargement évolutions 2024…';
+      evoIndex2024 = await loadEvoCsv(CONFIG.fichierEvo2024);
+    }
+    if (mode === 'evo2025' && !evoIndex2025) {
+      document.getElementById('status').textContent = 'Chargement évolutions 2025…';
+      const [reclasses, declasses] = await Promise.all([
+        loadEvoCsv(CONFIG.fichierEvo2025reclasses),
+        loadEvoCsv(CONFIG.fichierEvo2025declasses),
+      ]);
+      evoIndex2025 = { ...reclasses, ...declasses };
+    }
+  }
+
+  // Mettre à jour la légende
+  updateLegend(mode);
+
+  // Mettre à jour le style de toutes les communes
+  if (geojsonLayer) geojsonLayer.setStyle(getStyle);
+
+  // Mettre à jour le statut
+  const modeLabels = {
+    '2025': `${Object.keys(zoneIndex).length.toLocaleString()} communes · données 2025`,
+    'evo2025': `${Object.keys(evoIndex2025 || {}).length} communes modifiées · révision 5 sept. 2025`,
+    'evo2024': `${Object.keys(evoIndex2024 || {}).length} communes modifiées · révision juillet 2024`,
+  };
+  document.getElementById('status').textContent = modeLabels[mode];
+}
+
+// ─────────────────────────────────────────────
+// LÉGENDE DYNAMIQUE
+// ─────────────────────────────────────────────
+function updateLegend(mode) {
+  const title = document.getElementById('legend-title');
+  const items = document.getElementById('legend-items');
+
+  if (mode === '2025') {
+    title.textContent = 'Zonage ABC 2025';
+    items.innerHTML = `
+      <div class="legend-item"><div class="legend-color" style="background:#9800E7"></div><span>Zone A bis</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#F10000"></div><span>Zone A</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#FFA600"></div><span>Zone B1</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#ABE300"></div><span>Zone B2</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#FFFFFF; border:1px solid #999"></div><span>Zone C</span></div>
+    `;
+  } else {
+    const label = mode === 'evo2025' ? 'Évolutions sept. 2025' : 'Évolutions juil. 2024';
+    title.textContent = label;
+    items.innerHTML = `
+      <div class="legend-item"><div class="legend-color" style="background:${CONFIG.evoUpgrade.fill}"></div><span>${CONFIG.evoUpgrade.label}</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:${CONFIG.evoDowngrade.fill}"></div><span>${CONFIG.evoDowngrade.label}</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#FFFFFF; border:1px solid #999"></div><span>Inchangée</span></div>
+    `;
+  }
+}
+
+// ─────────────────────────────────────────────
 // RENDU DE LA CARTE
-// Les propriétés dans le TopoJSON sont compactes :
-//   c = code INSEE, n = nom, z = zone, d = département, r = reclassé
 // ─────────────────────────────────────────────
 function renderMap(geojson) {
   geojsonLayer = L.geoJSON(geojson, {
@@ -406,24 +545,50 @@ function renderMap(geojson) {
     onEachFeature: bindEvents,
   }).addTo(map);
 
-  // Ajouter les labels CartoDB par-dessus les communes colorées
   labelsLayer.addTo(map);
 }
 
 function getStyle(feature) {
+  if (currentMode !== '2025') {
+    return getEvoStyle(feature);
+  }
+
   const zone = feature.properties.z;
   const z    = ZONES[zone];
-
   if (!z) {
     return { fillColor: '#FFFFFF', weight: 0.3, color: '#cccccc', fillOpacity: 0.6 };
   }
-
   return {
     fillColor:   z.fill,
     fillOpacity: CONFIG.opaciteZones,
     color:       z.stroke,
     weight:      0.4,
     opacity:     0.9,
+  };
+}
+
+function getEvoStyle(feature) {
+  const code = feature.properties.c;
+  const evo  = currentMode === 'evo2024'
+    ? (evoIndex2024 || {})[code]
+    : (evoIndex2025 || {})[code];
+
+  if (!evo) {
+    // Commune inchangée : fond blanc très discret
+    return { fillColor: '#FFFFFF', weight: 0.2, color: '#dddddd', fillOpacity: 0.3 };
+  }
+
+  const rankFrom = ZONE_RANK[evo.from] ?? 99;
+  const rankTo   = ZONE_RANK[evo.to]   ?? 99;
+  const upgraded = rankTo < rankFrom;  // zone plus tendue = rang plus bas
+
+  const c = upgraded ? CONFIG.evoUpgrade : CONFIG.evoDowngrade;
+  return {
+    fillColor:   c.fill,
+    fillOpacity: CONFIG.opaciteZones,
+    color:       c.stroke,
+    weight:      0.6,
+    opacity:     1,
   };
 }
 
@@ -451,7 +616,10 @@ function onClickCommune(e) {
   const nameEl = document.getElementById('info-name');
   const depEl  = document.getElementById('info-dep');
   const reclEl = document.getElementById('info-reclassement');
+  const evoEl  = document.getElementById('info-evolution');
+  const evoTxt = document.getElementById('info-evolution-text');
 
+  // Données de base
   if (p.z) {
     const z = ZONES[p.z];
     badge.textContent      = p.z === 'Abis' ? 'A bis' : `Zone ${p.z}`;
@@ -459,14 +627,37 @@ function onClickCommune(e) {
     badge.style.color      = (p.z === 'B2' || p.z === 'C') ? '#333' : 'white';
     nameEl.textContent     = p.n || p.c;
     depEl.textContent      = `Département ${p.d} · Code INSEE : ${p.c}`;
-    reclEl.style.display   = p.r ? 'block' : 'none';
   } else {
     badge.textContent      = 'Non classée';
     badge.style.background = '#ddd';
     badge.style.color      = '#333';
     nameEl.textContent     = p.n || p.c || 'Commune inconnue';
     depEl.textContent      = p.c ? `Code INSEE : ${p.c}` : '';
-    reclEl.style.display   = 'none';
+  }
+
+  // Afficher selon le mode
+  if (currentMode === '2025') {
+    reclEl.style.display = p.r ? 'block' : 'none';
+    evoEl.style.display  = 'none';
+  } else {
+    reclEl.style.display = 'none';
+    const evo = currentMode === 'evo2024'
+      ? (evoIndex2024 || {})[p.c]
+      : (evoIndex2025 || {})[p.c];
+
+    if (evo) {
+      const rankFrom = ZONE_RANK[evo.from] ?? 99;
+      const rankTo   = ZONE_RANK[evo.to]   ?? 99;
+      const dir = rankTo < rankFrom ? 'plus tendue' : 'moins tendue';
+      const fromLabel = evo.from === 'Abis' ? 'A bis' : evo.from;
+      const toLabel   = evo.to   === 'Abis' ? 'A bis' : evo.to;
+      evoTxt.textContent = `Zone ${fromLabel} → Zone ${toLabel} (${dir})`;
+      evoEl.style.display = 'block';
+      evoEl.style.borderLeftColor = rankTo < rankFrom
+        ? CONFIG.evoUpgrade.fill : CONFIG.evoDowngrade.fill;
+    } else {
+      evoEl.style.display = 'none';
+    }
   }
 
   panel.style.display = 'block';
@@ -556,7 +747,7 @@ document.addEventListener('click', e => {
 // ─────────────────────────────────────────────
 function setStatus(text, pct) {
   document.getElementById('loading-text').textContent = text;
-  document.getElementById('progress-bar').style.width = pct + '%';
+  if (pct !== undefined) document.getElementById('progress-bar').style.width = pct + '%';
 }
 
 function hideLoading() {
