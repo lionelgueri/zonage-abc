@@ -10,6 +10,26 @@ Carte interactive du zonage ABC de toutes les communes françaises, mise à jour
 
 <br>
 
+## Qu'est-ce que le zonage ABC ?
+
+Le **zonage ABC** est un classement officiel des communes françaises selon le **déséquilibre entre l'offre et la demande de logements** (article D304-1 du Code de la construction et de l'habitation). Créé en 2003, il divise le territoire en 5 zones, de la plus tendue (A bis) à la plus détendue (C).
+
+Ce classement est révisé périodiquement par arrêté ministériel pour coller à la réalité des marchés locaux. La **dernière révision date du 5 septembre 2025** : 468 communes ont été reclassées vers une zone plus tendue et 19 déclassées.
+
+### Cas d'usage principaux
+
+| Dispositif | Rôle du zonage |
+|------------|---------------|
+| **Pinel / Denormandie / Loc'Avantages** | Détermine l'éligibilité à la réduction d'impôt et les plafonds de loyers applicables (zones A bis, A, B1 uniquement depuis 2018) |
+| **Prêt à Taux Zéro (PTZ)** | Conditionne l'accès au PTZ dans l'ancien avec travaux (zones B2 et C) et les barèmes applicables |
+| **Logement Locatif Intermédiaire (LLI)** | Plafonds de loyers et de ressources fixés selon la zone |
+| **Bail Réel Solidaire (BRS)** | Périmètre d'éligibilité et niveaux d'aide indexés sur la zone |
+| **Prêt Social Location-Accession (PSLA)** | Barèmes et plafonds définis par zone |
+
+> La révision de septembre 2025 permet à **2,4 millions de Français** supplémentaires de bénéficier de conditions plus avantageuses pour ces dispositifs.
+
+<br>
+
 ## Zones représentées
 
 | Couleur | Zone | Description |
