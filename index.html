@@ -346,11 +346,14 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png
   opacity: 0.4,
 }).addTo(map);
 
-// Calque labels uniquement — visible à partir du zoom 8 uniquement
-// (en dessous, CartoDB affiche les noms de régions en anglais)
-// À partir du zoom 8, les noms de villes sont correctement en français
+// Pane personnalisé au-dessus des polygones GeoJSON (overlayPane = 400)
+// pour que les labels apparaissent bien par-dessus les zones colorées
+map.createPane('labelsPane');
+map.getPane('labelsPane').style.zIndex = 450;
+map.getPane('labelsPane').style.pointerEvents = 'none';
+
 const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-  opacity: 1,
+  pane: 'labelsPane',
   minZoom: 6,
 });
 
