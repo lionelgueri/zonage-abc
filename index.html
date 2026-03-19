@@ -340,11 +340,21 @@ const map = L.map('map', {
   zoomControl: true,
 });
 
-// Fond de carte OpenStreetMap (100 % gratuit, pas de clé API)
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  opacity: 0.25,
+// Fond neutre très discret (base grise CartoDB)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/">CARTO</a>',
+  opacity: 0.4,
 }).addTo(map);
+
+// Calque labels uniquement — ajouté APRÈS le GeoJSON pour passer par-dessus
+// CartoDB gère automatiquement les noms affichés selon le niveau de zoom :
+//   zoom 6  → grandes métropoles seulement
+//   zoom 8  → villes moyennes
+//   zoom 11+ → villages et communes
+const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+  opacity: 1,
+  pane: 'shadowPane', // pane au-dessus des polygones mais standard dans Leaflet
+});
 
 // ─────────────────────────────────────────────
 // STOCKAGE DES DONNÉES
@@ -400,6 +410,9 @@ function renderMap(geojson) {
     style: getStyle,
     onEachFeature: bindEvents,
   }).addTo(map);
+
+  // Ajouter les labels par-dessus les communes colorées
+  labelsLayer.addTo(map);
 }
 
 function getStyle(feature) {
